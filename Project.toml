@@ -1,0 +1,16 @@
+name = "GenericMRRR"
+uuid = "cad52ee3-9bb9-4642-9199-5efbc4742e45"
+version = "0.1.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[compat]
+julia = "^1.2"
+
+[extras]
+Quadmath = "be4d8f0f-7fa4-5f49-b795-2f01399ab2dd"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "Quadmath"]
