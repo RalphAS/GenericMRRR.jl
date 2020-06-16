@@ -1019,8 +1019,8 @@ end
 for (pp, qf, ef, update) in
     ((0, :q, :e, :update0!),
      (1, :qq, :ee, :update1!))
-    @eval begin
-function __dqds_5!(state,zv::AbstractArray{QDtet{T}},i0,n0,::Val{$pp},σ,ϵ,::IEEEFPModel) where T
+ @eval begin
+  function __dqds_5!(state,zv::AbstractArray{QDtet{T}},i0,n0,::Val{$pp},σ,ϵ,::IEEEFPModel) where T
     z0 = zero(T)
     dthresh = ϵ * (σ + state.τ)
     negl_τ = state.τ < dthresh * (1/T(2))
@@ -1067,12 +1067,12 @@ function __dqds_5!(state,zv::AbstractArray{QDtet{T}},i0,n0,::Val{$pp},σ,ϵ,::IE
 
         update!(zv,n0,Val($pp),state.dn,emin)
     end
-    return dmin
-end
+      return dmin
+  end
 # compute one dqd (zero shift) transform in ping-pong form,
 # with over/underflow handling.
 # Translation of DLASQ6 from LAPACK
-function _dqd_6!(state, zv::AbstractArray{QDtet{T}},i0,n0,::Val{$pp}) where T
+  function _dqd_6!(state, zv::AbstractArray{QDtet{T}},i0,n0,::Val{$pp}) where T
     z0 = zero(T)
     safmin = safemin(T)
     emin = zv[i0+1].$qf
@@ -1142,56 +1142,8 @@ function _dqd_6!(state, zv::AbstractArray{QDtet{T}},i0,n0,::Val{$pp}) where T
     update!(zv,n0,Val($pp),state.dn,emin)
 
     return dmin
-end
-end # eval block
+  end # function
+ end # eval block
 end # pp loop
-
-################################################################
-# Epilog for development
-
-# wrapper for a single block; must be SPD
-function myeigvals(A::SymTridiagonal{T}, verbose=false) where T
-    m,n = size(A)
-
-    # code copied from main eigvals code (hence use of bsize):
-    ibegin = 1
-    bsize = n
-    if norm(A) == 0
-        # some of the test matrices are null, for which ldlt makes NaNs.
-        D = zeros(n)
-        E = zeros(n-1)
-    else
-        F = ldlt(A)
-        D = diag(F.D)
-        E = Array(diag(F.L,-1))
-    end
-
-    Zqd = zeros(4*bsize)
-    ii = 0
-    jj = ibegin
-    for i in 1:bsize
-        ii += 1
-        Zqd[ii] = abs(D[jj])
-        ii += 1
-        if i < bsize
-            Zqd[ii] = E[jj]^2 * abs(D[jj])
-        end
-        jj += 1
-    end
-    if verbose
-        println("Zqd:"); display(Zqd[1:2*bsize])
-    end
-
-    monitor = _dqds_eigvals!(n, Zqd)
-    w = Zqd[1:bsize]
-    if verbose
-        println("trace: ",monitor[1]," sum: ",monitor[2])
-        if n > 2
-            println("niter: ",monitor[3]," divs: ",monitor[4],
-                    " fail: ",monitor[5],"%")
-        end
-    end
-    return w
-end
 
 end # module

@@ -97,7 +97,7 @@ function _st_schur!(D::AbstractVector{RT}, E::AbstractVector{RT};
 
     select1 = _embed_selector(select, RT)
     if (select1.style != :all) && (n < 3)
-        throw(ArgumentError("subselection is not implemented for n < 3"))
+        throw(ArgumentError("Subselection is not implemented for n < 3."))
     end
     # TODO: other sanity checks on select
 
@@ -356,7 +356,7 @@ function _st_vectors!(D::AbstractVector{T}, L, blocks,
         while idone < mblock
             # generate representation tree for current block; compute eigvecs
             if ndepth > m
-                throw(ErrorException("algorithm failure: tree too deep"))
+                throw(AlgorithmFailure("Representation tree too deep."))
             end
             # breadth first processing of current level of tree
             old_ncluster = ncluster
@@ -698,7 +698,7 @@ function _st_vectors!(D::AbstractVector{T}, L, blocks,
                                     elseif iter == maxit
                                         needBS = true
                                     else
-                                        throw(ErrorException("RQ convergence failure"))
+                                        throw(ConvergenceFailure("Rayleigh quotient iteration failed."))
                                     end
                                 else
                                     # do we need another step of iterative improvement?
@@ -974,7 +974,7 @@ function _st_rrr!(n,D::AbstractVector{T}, L, LD, cl_start, cl_end,
                 rσ = best_shift
                 force_r = true
             else
-                throw(ErrorException("failed to find adequate representation"))
+                throw(RepresentationFailure("Failed to find adequate representation."))
             end
         end
     end
@@ -1459,7 +1459,7 @@ function _st_vals!(D::AbstractVector{T}, E, Esq, rtol1, rtol2, spltol, rac,
     elseif length(E) == n
         E[n] = z0
     else
-        throw(DimensionMismatch("Diagonal D and off-diagonal E are incommensurate"))
+        throw(DimensionMismatch("Diagonal D and off-diagonal E are incommensurate."))
     end
     w_err = fill(z0,n)
     w_gap = fill(z0,n)
@@ -1499,8 +1499,7 @@ function _st_vals!(D::AbstractVector{T}, E, Esq, rtol1, rtol2, spltol, rac,
                              gersl, gersu, bsrtol,
                              select)
         if !converged
-            # FIXME: not helpful
-            throw(ErrorException("convergence failure in approxeig"))
+            throw(AlgorithmFailure("Convergence failure in approxeig; suspect arithmetic."))
         end
         # clear dead entries
         # CHECKME: truncate?
@@ -1577,8 +1576,7 @@ function _st_vals!(D::AbstractVector{T}, E, Esq, rtol1, rtol2, spltol, rac,
                                                view(Esq,ibegin:iend-1),
                                                gl, gu, pivmin, rtl)
             if !converged
-                # FIXME: this is not helpful
-                throw(ErrorException("convergence failure"))
+                throw(AlgorithmFailure("Failed to find right end of block."))
             end
             isleft = max(gl, λ1 -  λ1_err - ceps * abs(λ1 - λ1_err))
 
@@ -1586,8 +1584,7 @@ function _st_vals!(D::AbstractVector{T}, E, Esq, rtol1, rtol2, spltol, rac,
                                                view(Esq,ibegin:iend-1),
                                                gl, gu, pivmin, rtl)
             if !converged
-                # FIXME: this is not helpful
-                throw(ErrorException("convergence failure"))
+                throw(AlgorithmFailure("Failed to find left end of block."))
             end
             isright = min(gu, λ1 +  λ1_err + ceps * abs(λ1 + λ1_err))
             spdiam = isright - isleft
@@ -1726,8 +1723,7 @@ function _st_vals!(D::AbstractVector{T}, E, Esq, rtol1, rtol2, spltol, rac,
                 break
             end
             if itry == maxtry
-                # FIXME: not helpful
-                throw(ErrorException("failed to find base representation in maxtry iterations"))
+                throw(AlgorithmFailure("Failed to find base representation in maxtry=$maxtry iterations."))
             end
         end # shifted LDLᵀ trial loop
 
@@ -1804,7 +1800,7 @@ function _st_vals!(D::AbstractVector{T}, E, Esq, rtol1, rtol2, spltol, rac,
 
             for i in 1:bsize
                 if Zqd[i] < 0
-                    throw(ErrorException("nonpositive eigenvalue from dqds"))
+                    throw(AlgorithmFailure("Nonpositive eigenvalue from dqds."))
                 end
             end
             # extract w[m] from Z
@@ -2111,8 +2107,6 @@ function _sturm_count(n, D::AbstractVector{T}, LLD, σ, pivmin, r) where T
     return negcnt
 end
 
-# FIXME: apparently have translations of both dlarrc and zlarrc - pick one!
-
 # translation of LARRC from LAPACK
 # find nr of eigvals in interval (vl,vu]
 # i.e. Sturm sequence count on sym. tridiag. (D,E)
@@ -2137,49 +2131,6 @@ function _st_count_eigs(n, vl, vu, D, E, pivmin)
         if rpivot <= 0
             rcnt += 1
         end
-    end
-    eigcnt = rcnt - lcnt
-    return eigcnt, lcnt, rcnt
-end
-
-# translation of LARRC from LAPACK
-# find nr of eigvals in interval (vl,vu]
-# i.e. Sturm sequence count on L D Lᵀ (L is unit_tri(E))
-function _hetrf_count_eigs(n, vl, vu, D, E, pivmin)
-
-    eigcnt = lcnt = rcnt = 0
-    sl = -vl
-    su = -vu
-    for i in 1:n-1
-        lpivot = D[i] + sl
-        rpivot = D[i] + su
-        if lpivot <= 0
-            lcnt += 1
-        end
-        if rpivot <= 0
-            rcnt += 1
-        end
-        t = E[i] * D[i] * E[i]
-        t2 = t / lpivot
-        if t2 == 0
-            sl = t - vl
-        else
-            sl = sl * t2 - vl
-        end
-        t2 = t / rpivot
-        if t2 == 0
-            su = t - vu
-        else
-            su = su * t2 - vu
-        end
-    end
-    lpivot = D[n] + sl
-    rpivot = D[n] + su
-    if lpivot <= 0
-        lcnt += 1
-    end
-    if rpivot <= 0
-        rcnt += 1
     end
     eigcnt = rcnt - lcnt
     return eigcnt, lcnt, rcnt
@@ -2256,7 +2207,7 @@ function _st_approxeig(D::AbstractVector{T}, E, Esq, pivmin, nsplit, isplit,
                                                   nval, ab, nab, c)
         if n_left > 0
             # DSTEBZ doesn't check for this, but DLARRD does
-            throw(ErrorException("convergence failure"))
+            throw(ConvergenceFailure("Unable to find bracketing interval."))
         end
 
         if nval[2] == select.iu
@@ -2275,7 +2226,7 @@ function _st_approxeig(D::AbstractVector{T}, E, Esq, pivmin, nsplit, isplit,
         end
         # [wl,wlu] should have negcount nwl, and [wul,wu] negcount nwu.
         if nwl < 0 || nwl >= n || nwu < 1 || nwu > n
-            throw(ErrorException("Gersgorin interval was too small: suspect arithmetic."))
+            throw(AlgorithmFailure("Gersgorin interval was too small: suspect arithmetic."))
         end
     elseif select.style == :val
         wl = select.vl
@@ -2364,7 +2315,7 @@ function _st_approxeig(D::AbstractVector{T}, E, Esq, pivmin, nsplit, isplit,
                                                        ab, nab)
             if n_left > 0
                 # CHECKME: maybe just flag the poor ones as in LAPACK
-                throw(ErrorException("convergence failure"))
+                throw(AlgorithmFailure("Bisection failed to find eigenvalues; nleft=$nleft."))
             end
             # copy eigvals into w and set iblock
             # use -jblk for block nr for unconverged eigvals

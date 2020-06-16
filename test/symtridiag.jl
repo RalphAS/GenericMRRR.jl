@@ -1,9 +1,13 @@
 module TGST
-# test generic symmetric tridiagonal stuff
+
 using LinearAlgebra
 using Test
 using Quadmath
 using GenericMRRR
+using GenericMRRR: RepresentationFailure
+
+# used to build test matrices
+using GenericLinearAlgebra: symtri!
 
 const matdir = joinpath(@__DIR__,"stester","DATA")
 
@@ -93,10 +97,13 @@ function st_testmat1(n,itype,::Type{T}=Float64; dtype=:normal) where T
     A = Q' * diagm(λ) * Q
     if T <: Union{Float32, Float64}
         F = hessenberg!(A)
+        S = F.H
     else
-        F = ghessenberg!(Hermitian(A))
+        # F = ghessenberg!(Hermitian(A))
+        # S = F.H
+        F = symtri!(Hermitian(A))
+        S = F.diagonals
     end
-    S = F.H
     return S, λ
 end
 const itypes1 = 1:9
@@ -147,7 +154,7 @@ function gluemats(mat1::SymTridiagonal{T}, mats...; gval=zero(T)) where T
     SymTridiagonal(D, E)
 end
 
-function batch(n, ::Type{T}=Float64) where {T}
+function batch(n, ::Type{T}=Float64; thresh=50, quiet=true) where {T}
     dmax=0.0; vmax=0.0
     for itype in itypes1
         @testset "class 1 type $itype" begin
@@ -155,11 +162,11 @@ function batch(n, ::Type{T}=Float64) where {T}
             de, ve = runtest(diag(A), diag(A,1))
             dmax = max(dmax, de)
             vmax = max(vmax, ve)
-            @test de < 30
-            @test ve < 30
+            @test de < thresh
+            @test ve < thresh
         end
     end
-    println("peak errors: $dmax $vmax")
+    quiet || println("peak errors: $dmax $vmax")
     dmax=0.0; vmax=0.0
     for itype in itypes2
         @testset "class 2 type $itype" begin
@@ -167,15 +174,14 @@ function batch(n, ::Type{T}=Float64) where {T}
             de, ve = runtest(diag(A), diag(A,1))
             dmax = max(dmax, de)
             vmax = max(vmax, ve)
-            @test de < 30
-            @test ve < 30
+            @test de < thresh
+            @test ve < thresh
         end
     end
-    println("peak errors: $dmax $vmax")
+    quiet || println("peak errors: $dmax $vmax")
     nothing
 end
 
-# this is used in STETESTER, who am I to disagree?
 maxnorm(A) = maximum(abs.(vec(A)))
 
 function runtest(D::AbstractVector{T}, E; λ=nothing, V=nothing) where T <: Real
@@ -284,19 +290,39 @@ function runfile(fname, wantV=true, checkev=!wantV)
     λ,V
 end
 
-const problems = Dict{String,Any}(
-    "T_bug113.dat" => :error,
-    "T_bug113_38-47.dat" => :error,
-    "Julien_30.dat" => :error,
-    "B_glued_09a.dat" => :error,
-    "B_glued_09b.dat" => :error,
-    "B_glued_09c.dat" => :error,
-    "B_glued_09d.dat" => :error,
+const problemsF64 = Dict{String,Any}(
+    "T_bug113.dat" => :representation,
+    "T_bug113_38-47.dat" => :representation,
+    "Julien_30.dat" => :representation,
+    "B_bug255_bdsdc.dat"  => :representation,
+    "B_glued_09a.dat" => :representation,
+    "B_glued_09b.dat" => :representation,
+    "B_glued_09c.dat" => :representation,
+    "B_glued_09d.dat" => :representation,
+    "B_gg_30_1D-3.dat" => :representation,
+    "B_gg_30_1D-4.dat" => :representation,
+    "B_gg_30_1D-5.dat" => :representation,
+    "B_Kimura_429.dat" => :representation,
+    "B_Kimura_981.dat" => :representation,
+    "B_Kimura_985.dat" => :representation,
+    "BNP_560a.dat"  => :inaccurate,
+    "BNP_560b.dat"  => :inaccurate,
+    "Golub-Kahan.dat" => :representation,
+    "Lipshitz_1.dat"  => :representation,
     "T_bug126_U.dat" => :inaccurate,
+    "Z_297.dat" => :representation,
+    "Z_594.dat" => :representation,
 )
 
-function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true)
+const problemsF128 = Dict{String,Any}(
+    "B_16.dat" => :representation,
+    "B_bug316_gesdd.dat" => :representation,
+    "Julien_30.dat" => :representation,
+)
+
+function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true, thresh=100)
     c = 0
+    problems = promote ? problemsF128 : problemsF64
     for (root, dirs, files) in walkdir(dir)
         for fnam in files
             if fnam[end-3:end] == ".dat"
@@ -314,21 +340,25 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true)
                         local λ, V
                         if fnam ∈ keys(problems)
                             if wantV
-                                if problems[fnam] == :error
-                                    @test_throws ErrorException geigen!(SymTridiagonal(copy(Dx),copy(Ex)))
-                                else
+                                if problems[fnam] == :representation
+                                    @test_throws RepresentationFailure geigen!(SymTridiagonal(copy(Dx),copy(Ex)))
+                                    @info "Accepting known failure for $fnam"
+                                elseif problems[fnam] == :inaccurate
                                     λ, V = geigen!(SymTridiagonal(copy(Dx),copy(Ex)))
                                     de, ve = runtest(Dx,Ex,λ=λ,V=V)
-                                    bad = de > 100 || ve > 100
-                                    (bad || !quiet) && println("  errors: decomp $de orth $ve")
+                                    bad = de > thresh || ve > thresh
+                                    (bad || !quiet) && println("  $fnam errors: decomp $de orth $ve")
                                     if bad
-                                        @test_broken de < 100
-                                        @test_broken ve < 100
+                                        @test_broken de < thresh
+                                        @test_broken ve < thresh
+                                        @info "Accepting known failure for $fnam"
                                     else
-                                        @info "residual test passing for $fnam"
-                                        @test de < 100
-                                        @test ve < 100
+                                        @info "Residual test passed for $fnam"
+                                        @test de < thresh
+                                        @test ve < thresh
                                     end
+                                else
+                                    error("bad logic in test code.")
                                 end
                             else
                                 @test_throws problems[fnam] geigvals!(SymTridiagonal(copy(Dx),copy(Ex)))
@@ -342,10 +372,10 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true)
                             end
                             if wantV
                                 de, ve = runtest(Dx,Ex,λ=λ,V=V)
-                                bad = de > 100 || ve > 100
+                                bad = de > thresh || ve > thresh
                                 (bad || !quiet) && println("  errors: decomp $de orth $ve")
-                                @test de < 100
-                                @test ve < 100
+                                @test de < thresh
+                                @test ve < thresh
                             else
                                 checkλs(D, E, λ, joinpath(root,fnam))
                             end
@@ -366,8 +396,12 @@ end
 
 
 if isdir(matdir)
-    @testset "SETester" begin
-        runfiles(matdir)
+    @testset "STETester" begin
+        # some of the larger cases are intermittent, so we skip them in CI
+        runfiles(matdir, 100)
+    end
+    @testset "STETester-Float128" begin
+        runfiles(matdir, promote=true)
     end
 end
 
