@@ -107,6 +107,8 @@ function st_testmat1(n,itype,::Type{T}=Float64; dtype=:normal) where T
     return S, λ
 end
 const itypes1 = 1:9
+# downselect so subsetting is reasonable
+const itypes1a = [1,3,4,5,6]
 
 function st_testmat2(n,itype,::Type{T}=Float64; dtype=:normal) where T <: Real
     dtype ∈ [:normal, :unif, :uniform] || throw(ArgumentError("incomprehensible dtype"))
@@ -182,6 +184,7 @@ function batch(n, ::Type{T}=Float64; thresh=50, quiet=true) where {T}
     nothing
 end
 
+
 maxnorm(A) = maximum(abs.(vec(A)))
 
 function runtest(D::AbstractVector{T}, E; λ=nothing, V=nothing) where T <: Real
@@ -211,6 +214,79 @@ function runtest(D::AbstractVector{T}, E; λ=nothing, V=nothing) where T <: Real
         v_err = maxnorm(V' * V - I) / (myeps * ntol)
     end
     d_err, v_err
+end
+
+function batch_partial(n, ::Type{T}=Float64; thresh=50, quiet=true) where {T}
+    myeps = eps(T)
+    for itype in itypes1a
+        @testset "class 1 type $itype size $n subsets" begin
+            A,_ = st_testmat1(n, itype, T)
+            D = diag(A)
+            E = diag(A,1)
+            @assert length(D) == n
+            λall = geigvals!(SymTridiagonal(copy(D), copy(E)))
+            sort!(λall) # just in case
+            n1 = n >> 2
+            n2 = 3 * n1
+            @assert λall[n1] != λall[n1-1]
+            @assert λall[n2+1] != λall[n2]
+            v1 = (λall[n1] + λall[n1-1]) / 2
+            v2 = (λall[n2] + λall[n2+1]) / 2
+
+            for icase in 1:6
+                @testset "$itype subset case $icase" begin
+                    if icase == 1
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), 1:n1-1)
+                        m = length(λ)
+                        @test m == n1-1
+                    elseif icase == 2
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), n1:n2)
+                        m = length(λ)
+                        @test m == n2-n1+1
+                    elseif icase == 3
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), n2+1:n)
+                        m = length(λ)
+                        @test m == n-n2
+                    elseif icase == 4
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), T(-Inf), v1)
+                        m = length(λ)
+                        @test m == n1-1
+                    elseif icase == 5
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), v1, v2)
+                        m = length(λ)
+                        @test m == n2-n1+1
+                    elseif icase == 6
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), v2, T(Inf))
+                        m = length(λ)
+                        @test m == n-n2
+                    end
+
+                    m = size(V,2)
+                    ntol = min(m,n)
+                    if m == n
+                        resnorm = maxnorm(V*Diagonal(λ)*V' - SymTridiagonal(D,E))
+                    else
+                        resnorm = maxnorm(Diagonal(λ) - V' * SymTridiagonal(D,E) * V)
+                    end
+                    Tnorm = max(opnorm(SymTridiagonal(D,E),1), floatmin(T))
+                    if resnorm < Tnorm
+                        d_err =  (resnorm / Tnorm) / (myeps * ntol)
+                    elseif Tnorm < 1
+                        d_err = (min(resnorm, Tnorm * ntol) / Tnorm) / (myeps * ntol)
+                    else
+                        d_err = min(resnorm / Tnorm, ntol) / (myeps * ntol)
+                    end
+                    if m == n
+                        v_err = maxnorm(V * V' - I) / (myeps * ntol)
+                    else
+                        v_err = maxnorm(V' * V - I) / (myeps * ntol)
+                    end
+                    @test d_err < thresh
+                    @test v_err < thresh
+                end
+            end
+        end
+    end
 end
 
 function loadmat(fname)
@@ -290,6 +366,7 @@ function runfile(fname, wantV=true, checkev=!wantV)
     λ,V
 end
 
+# These matrices are problematic for LAPACK v3.8 and for us.
 const problemsF64 = Dict{String,Any}(
     "T_bug113.dat" => :representation,
     "T_bug113_38-47.dat" => :representation,
@@ -342,7 +419,7 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true, thresh=1
                             if wantV
                                 if problems[fnam] == :representation
                                     @test_throws RepresentationFailure geigen!(SymTridiagonal(copy(Dx),copy(Ex)))
-                                    @info "Accepting known failure for $fnam"
+                                    @info "Acknowledging known failure for $fnam"
                                 elseif problems[fnam] == :inaccurate
                                     λ, V = geigen!(SymTridiagonal(copy(Dx),copy(Ex)))
                                     de, ve = runtest(Dx,Ex,λ=λ,V=V)
@@ -351,7 +428,7 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true, thresh=1
                                     if bad
                                         @test_broken de < thresh
                                         @test_broken ve < thresh
-                                        @info "Accepting known failure for $fnam"
+                                        @info "Acknowledging known failure for $fnam"
                                     else
                                         @info "Residual test passed for $fnam"
                                         @test de < thresh
@@ -361,7 +438,8 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true, thresh=1
                                     error("bad logic in test code.")
                                 end
                             else
-                                @test_throws problems[fnam] geigvals!(SymTridiagonal(copy(Dx),copy(Ex)))
+                                @test_throws Exception geigvals!(SymTridiagonal(copy(Dx),copy(Ex)))
+                                @info "Acknowledging $(problems[fnam]) for $fnam"
                             end
                         else
                             if wantV
@@ -388,10 +466,23 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true, thresh=1
     quiet || println("done with $c files.")
 end
 
-for T in [Float64, Float128]
+bpthresh = Dict{Any,Int}(Float32 => 100, Float64 => 100, Float128 => 50, BigFloat => 50)
+
+# This may seem excessive, but each of these precisions helped us find and
+# fix mistakes in development, so we'll keep them.
+for T in [Float32, Float64, Float128, BigFloat]
     @testset "Batch $T" begin
         batch(32, T)
     end
+    @testset "Batch (subsets) $T" begin
+        batch_partial(32, T, thresh = bpthresh[T])
+    end
+end
+
+# exercise the "vector" bisection code
+# Threshold should be bpthresh[Float64], but we've had trouble here.
+@testset "Batch (partial, large) Float64" begin
+        batch_partial(256, Float64, thresh = 200)
 end
 
 
