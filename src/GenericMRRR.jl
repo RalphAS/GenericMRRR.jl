@@ -20,47 +20,47 @@ struct RepresentationFailure <: Exception
 end
 
 """
-    geigen!(A::SymTridiagonal{T},...) where T <: Real -> Eigen
+    geigen!(A::SymTridiagonal{T},...) where T <: AbstractFloat -> Eigen
 
-Computes eigen-decomposition of a symmetric tridiagonal matrix.
+Computes full or partial eigen-decomposition of a symmetric tridiagonal matrix.
 
 Signatures and functionality are (intended to be!) identical to
 `LinearAlgebra.eigen!(::SymTridiagonal,...)`, except that these handle more general element
 types.
 """
-function geigen!(A::SymTridiagonal{T}) where T <: Real
+function geigen!(A::SymTridiagonal{T}) where T <: AbstractFloat
     λ, V = _st_schur!(A.dv, A.ev, wantV = true)
     LinearAlgebra.Eigen(sorteig!(λ, V, eigsortby)...)
 end
-function geigen!(A::SymTridiagonal{T}, irange::UnitRange) where T <: Real
+function geigen!(A::SymTridiagonal{T}, irange::UnitRange) where T <: AbstractFloat
     λ, V = _st_schur!(A.dv, A.ev, wantV = true,
                      select=IndexedEigvalSelector(first(irange),last(irange)))
     LinearAlgebra.Eigen(sorteig!(λ, V, eigsortby)...)
 end
-function geigen!(A::SymTridiagonal{T}, vl::Real, vu::Real) where T <: Real
+function geigen!(A::SymTridiagonal{T}, vl::Real, vu::Real) where T <: AbstractFloat
     λ, V = _st_schur!(A.dv, A.ev, wantV = true,
                      select=IntervalEigvalSelector(vl,vu))
     LinearAlgebra.Eigen(sorteig!(λ, V, eigsortby)...)
 end
 """
-    geigvals!(A::SymTridiagonal{T},...) where T <: Real -> Vector{T}
+    geigvals!(A::SymTridiagonal{T},...) where T <: AbstractFloat -> Vector{T}
 
-Computes eigen-decomposition of a symmetric tridiagonal matrix.
+Computes some or all eigenvalues of a symmetric tridiagonal matrix.
 
 Signatures and functionality are (intended to be!) identical to
 `LinearAlgebra.eigvals!(::SymTridiagonal,...)`, except that these handle more general element
 types.
 """
-function geigvals!(A::SymTridiagonal{T}) where T <: Real
+function geigvals!(A::SymTridiagonal{T}) where T <: AbstractFloat
     λ, _ = _st_schur!(A.dv, A.ev, wantV = false)
     return λ
 end
-function geigvals!(A::SymTridiagonal{T}, irange::UnitRange) where T <: Real
+function geigvals!(A::SymTridiagonal{T}, irange::UnitRange) where T <: AbstractFloat
     λ, _ = _st_schur!(A.dv, A.ev, wantV = false,
                      select=IndexedEigvalSelector(first(irange),last(irange)))
     return λ
 end
-function geigvals!(A::SymTridiagonal{T}, vl::Real, vu::Real) where T <: Real
+function geigvals!(A::SymTridiagonal{T}, vl::Real, vu::Real) where T <: AbstractFloat
     λ, _ = _st_schur!(A.dv, A.ev, wantV = false,
                      select=IntervalEigvalSelector(vl,vu))
     return λ
