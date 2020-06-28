@@ -2,13 +2,12 @@ module GenericMRRR
 
 using LinearAlgebra
 using LinearAlgebra: eigsortby, sorteig!, checksquare, reflector!
-using GenericLinearAlgebra: symtri!
 export geigen!, geigvals!
+
+using Requires: @require
 
 include("symtridiag.jl")
 include("dqds.jl")
-
-using LinearAlgebra: RealHermSymComplexHerm
 
 struct AlgorithmFailure <: Exception
     msg::String
@@ -67,27 +66,10 @@ function geigvals!(A::SymTridiagonal{T}, vl::Real, vu::Real) where T <: Real
     return λ
 end
 
-function geigen!(A::RealHermSymComplexHerm{T,<:StridedMatrix};
-                sortby::Union{Function,Nothing}=eigsortby) where T
-    # S = ghessenberg!(A)
-    # λ, V = _st_schur!(S.H.dv, S.H.ev, wantV = true)
-    S = symtri!(A)
-    λ, V = _st_schur!(S.diagonals.dv, S.diagonals.ev, wantV = true)
-    if T <: Complex
-        V = V .+ 0im
+function __init__()
+    @require GenericLinearAlgebra="14197337-ba66-59df-a3e3-ca00e7dcff7a" begin
+        include("gla.jl")
     end
-    lmul!(S.Q, V)
-    LinearAlgebra.Eigen(sorteig!(λ, V, sortby)...)
-end
-
-function geigvals!(A::RealHermSymComplexHerm{T,<:StridedMatrix};
-                sortby::Union{Function,Nothing}=eigsortby) where T
-    # S = ghessenberg!(A)
-    # λ, _ = _st_schur!(S.H.dv, S.H.ev, wantV = false)
-    S = symtri!(A)
-    λ, _ = _st_schur!(S.diagonals.dv, S.diagonals.ev, wantV = false)
-    sorteig!(λ, sortby)
-    return λ
 end
 
 end # module
