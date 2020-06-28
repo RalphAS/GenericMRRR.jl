@@ -468,8 +468,9 @@ end
 # translation of DLASQ3 from LAPACK
 # Documentation for dlasq3 suggests it doesn't use old σ or dmin,
 # but that's wrong.
-# Documentation claims deflation tests should be skipped if pp==2;
-# that's not in the code, but the logic is incoherent without that.
+# Deflation tests should be skipped if pp==2.
+# That seems to depend on a confusing index in dlasq3; the logic is slightly
+# different here but appears to work.
 function _dqds_3!(zv::AbstractArray{QDtet{T}},i0,n0in,pp,qmax,σ,dmin,state) where T
     z0 = zero(T)
     myeps = eps(T)
@@ -478,12 +479,7 @@ function _dqds_3!(zv::AbstractArray{QDtet{T}},i0,n0in,pp,qmax,σ,dmin,state) whe
     cbias = T(3)/2
 
     n0 = n0in
-    dbg_iter = 0
     while true
-        dbg_iter += 1
-        if dbg_iter > 1000
-            throw(ErrorException("effed up."))
-        end
         # check for deflation
         if n0 < i0
             return n0,pp,dmin,σ
@@ -680,10 +676,9 @@ end
 # modifies `state`: sets τ, ttype;  updates g
 # translation of DLASQ4 from LAPACK
 
-# NOTE: Fernando (note, Feb 2020) claims that one should assign
-#  state.τ = s
+# NOTE: Fernando (note, Feb 2020) claims that one should assign `state.τ = s`
 # before all of the unusual return statements.
-# I haven't found the rationale for these unusual branches, so am puzzled.
+# I haven't found the rationale for these unusual branches, so I'm puzzled.
 function _dqds_4!(state, zv::AbstractArray{QDtet{T}}, i0, n0, pp, n0in, dmin) where T
     z0 = zero(T)
     const1 = 0.563
