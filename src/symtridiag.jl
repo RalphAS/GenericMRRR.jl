@@ -170,6 +170,9 @@ function _st_schur!(D::AbstractVector{RT}, E::AbstractVector{RT};
     end
     λ, w_err, w_gap, m, blocks, bounds = _st_vals!(D, E, Esq, rtol1, rtol2, thresh, rac, select1)
     wl, wu = bounds
+    if select1.style != :all && m < length(λ)
+        λ = λ[1:m]
+    end
 
     if wantV
 
@@ -1070,7 +1073,7 @@ function _st_get1ev(n, b1, bn, λ, D::AbstractVector{T}, L, LD, LLD, pivmin, gap
     end
 
     # Step 2. Compute stationary transform using the differential form down to index r1
-    sawnan1 = false
+    sawnan2 = false
     P[bn] = D[bn] - λ
     neg2 = 0
     @inbounds for i in bn-1:-1:r1
@@ -2168,7 +2171,7 @@ function _st_approxeig(D::AbstractVector{T}, E, Esq, pivmin, nsplit, isplit,
         end
         return m, w, w_err, wl, wu, iblock, indexw, converged
     end
-    # nb is minimum vector length for vector bisection.
+    # nb is minimum vector length for "vector" bisection.
     # LAPACK calls a block config utility.
     # FIXME: we punt.
     nb = 32 # 0 to force scalar branch
@@ -2189,7 +2192,7 @@ function _st_approxeig(D::AbstractVector{T}, E, Esq, pivmin, nsplit, isplit,
     end
 
     if select.style == :idx
-        itmax = round(Int,(log2(tnorm + pivmin) - log2(pivmin)) + 2)
+        itmax = round(Int,(log2(tnorm + pivmin) - log2(pivmin)) + 2, RoundUp)
         # compute an interval containing eigvals il:iu.
         # Initial interval (global Geršgorin bounds) is refined.
         ab = [gl gu; gl gu]
