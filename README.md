@@ -39,9 +39,12 @@ E = geigen!(copy(A), 1:10)
 E = geigvals!(copy(A), -1.0, 1.0)
 ```
 
-If the `GenericLinearAlgebra` package is loaded,
-it also implements `geigen!` and `geigvals!` methods
-for dense `Hermitian` matrices.
+It also implements `geigen!` and `geigvals!` methods
+for dense `Hermitian` matrices, when the `MRRR` algorithm is selected.
+```
+A = Hermitian(rand(n,n))
+E = geigen!(copy(A), MRRR())
+```
 
 ## Algorithms
 

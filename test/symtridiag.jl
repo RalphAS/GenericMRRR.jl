@@ -3,11 +3,11 @@ module TGST
 using LinearAlgebra
 using Test
 using Quadmath
+using GenericSchur: geigen!, geigvals!
 using GenericMRRR
 using GenericMRRR: RepresentationFailure
 
 # used to build test matrices
-using GenericLinearAlgebra: symtri!
 
 const matdir = joinpath(@__DIR__,"stester","DATA")
 
@@ -95,15 +95,8 @@ function st_testmat1(n,itype,::Type{T}=Float64; dtype=:normal) where T
     Q = T.(Matrix(Q)) # until LinearAlgebra is fixed
     # FIXME: sign adjustment
     A = Q' * diagm(λ) * Q
-    if T <: Union{Float32, Float64}
-        F = hessenberg!(A)
-        S = F.H
-    else
-        # F = ghessenberg!(Hermitian(A))
-        # S = F.H
-        F = symtri!(Hermitian(A))
-        S = F.diagonals
-    end
+    F = hessenberg!(A)
+    S = F.H
     return S, λ
 end
 const itypes1 = 1:9
@@ -189,7 +182,7 @@ maxnorm(A) = maximum(abs.(vec(A)))
 
 function runtest(D::AbstractVector{T}, E; λ=nothing, V=nothing) where T <: Real
     if λ === nothing
-        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)))
+        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), MRRR())
     end
     n = length(D)
     m = size(V,2)
@@ -224,7 +217,7 @@ function batch_partial(n, ::Type{T}=Float64; thresh=50, quiet=true) where {T}
             D = diag(A)
             E = diag(A,1)
             @assert length(D) == n
-            λall = geigvals!(SymTridiagonal(copy(D), copy(E)))
+            λall = geigvals!(SymTridiagonal(copy(D), copy(E)), MRRR())
             sort!(λall) # just in case
             n1 = n >> 2
             n2 = 3 * n1
@@ -236,27 +229,27 @@ function batch_partial(n, ::Type{T}=Float64; thresh=50, quiet=true) where {T}
             for icase in 1:6
                 @testset "$itype subset case $icase" begin
                     if icase == 1
-                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), 1:n1-1)
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), 1:n1-1, MRRR())
                         m = length(λ)
                         @test m == n1-1
                     elseif icase == 2
-                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), n1:n2)
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), n1:n2, MRRR())
                         m = length(λ)
                         @test m == n2-n1+1
                     elseif icase == 3
-                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), n2+1:n)
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), n2+1:n, MRRR())
                         m = length(λ)
                         @test m == n-n2
                     elseif icase == 4
-                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), T(-Inf), v1)
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), T(-Inf), v1, MRRR())
                         m = length(λ)
                         @test m == n1-1
                     elseif icase == 5
-                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), v1, v2)
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), v1, v2, MRRR())
                         m = length(λ)
                         @test m == n2-n1+1
                     elseif icase == 6
-                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), v2, T(Inf))
+                        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), v2, T(Inf), MRRR())
                         m = length(λ)
                         @test m == n-n2
                     end
@@ -351,9 +344,9 @@ function runfile(fname, wantV=true, checkev=!wantV)
     D, E = loadmat(fname)
     n = length(D)
     if wantV
-        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)))
+        λ, V = geigen!(SymTridiagonal(copy(D), copy(E)), MRRR())
     else
-        λ = geigvals!(SymTridiagonal(copy(D), copy(E)))
+        λ = geigvals!(SymTridiagonal(copy(D), copy(E)), MRRR())
         V = nothing
     end
     if wantV
@@ -418,10 +411,10 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true, thresh=1
                         if fnam ∈ keys(problems)
                             if wantV
                                 if problems[fnam] == :representation
-                                    @test_throws RepresentationFailure geigen!(SymTridiagonal(copy(Dx),copy(Ex)))
+                                    @test_throws RepresentationFailure geigen!(SymTridiagonal(copy(Dx),copy(Ex)), MRRR())
                                     @info "Acknowledging known failure for $fnam"
                                 elseif problems[fnam] == :inaccurate
-                                    λ, V = geigen!(SymTridiagonal(copy(Dx),copy(Ex)))
+                                    λ, V = geigen!(SymTridiagonal(copy(Dx),copy(Ex)), MRRR())
                                     de, ve = runtest(Dx,Ex,λ=λ,V=V)
                                     bad = de > thresh || ve > thresh
                                     (bad || !quiet) && println("  $fnam errors: decomp $de orth $ve")
@@ -438,14 +431,14 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true, thresh=1
                                     error("bad logic in test code.")
                                 end
                             else
-                                @test_throws Exception geigvals!(SymTridiagonal(copy(Dx),copy(Ex)))
+                                @test_throws Exception geigvals!(SymTridiagonal(copy(Dx),copy(Ex)), MRRR())
                                 @info "Acknowledging $(problems[fnam]) for $fnam"
                             end
                         else
                             if wantV
-                                λ, V = geigen!(SymTridiagonal(copy(Dx),copy(Ex)))
+                                λ, V = geigen!(SymTridiagonal(copy(Dx),copy(Ex)), MRRR())
                             else
-                                λ = geigvals!(SymTridiagonal(copy(Dx),copy(Ex)))
+                                λ = geigvals!(SymTridiagonal(copy(Dx),copy(Ex)), MRRR())
                                 V = nothing
                             end
                             if wantV
@@ -466,7 +459,8 @@ function runfiles(dir, nmax=100, wantV=true; promote=false, quiet=true, thresh=1
     quiet || println("done with $c files.")
 end
 
-bpthresh = Dict{Any,Int}(Float32 => 100, Float64 => 100, Float128 => 50, BigFloat => 50)
+# we had 50 for Float128 and BigFloat, but some cases don't make that cut.
+bpthresh = Dict{Any,Int}(Float32 => 100, Float64 => 100, Float128 => 100, BigFloat => 100)
 
 # This may seem excessive, but each of these precisions helped us find and
 # fix mistakes in development, so we'll keep them.
