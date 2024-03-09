@@ -1,19 +1,25 @@
 name = "GenericMRRR"
 uuid = "cad52ee3-9bb9-4642-9199-5efbc4742e45"
-version = "0.1.0"
+version = "0.1.1-DEV"
 
 [deps]
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 GenericSchur = "c145ed77-6b09-5dd9-b285-bf645a82121e"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
 julia = "^1.2"
+Aqua = "0.8"
 GenericSchur = "^0.5"
+LinearAlgebra = "1"
+Quadmath = "0.5"
+Random = "1"
+Test = "1"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Quadmath = "be4d8f0f-7fa4-5f49-b795-2f01399ab2dd"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Quadmath", "Random"]
+test = ["Test", "Quadmath", "Random", "Aqua"]
